@@ -4,6 +4,23 @@ impl O {
     pub fn f<P: sig::F<Self, R>, R>(&self, p: P) -> R {
         p.f(self)
     }
+
+    pub async fn f_async<P: sig::FAsync<Self, R>, R>(&self, p: P) -> R {
+        p.f_async(self).await
+    }
+}
+
+pub mod sig {
+    use async_trait::async_trait;
+
+    pub trait F<O: ?Sized, R> {
+        fn f(&self, o: &O) -> R;
+    }
+
+    #[async_trait]
+    pub trait FAsync<O: ?Sized, R> {
+        async fn f_async(&self, o: &O) -> R;
+    }
 }
 
 pub mod arg {
@@ -25,11 +42,5 @@ pub mod arg {
         weight: i32,
         #[builder(default = "\"English\"")]
         language: &'a str,
-    }
-}
-
-pub mod sig {
-    pub trait F<O: ?Sized, R> {
-        fn f(&self, o: &O) -> R;
     }
 }

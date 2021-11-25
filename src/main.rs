@@ -8,7 +8,8 @@ use struct_fn::definition::*;
 use trait_fn::definition::*;
 use trait_fn::implementation::*;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // independent fn
     println!("{}", f(())?);
     println!("{:#?}", f(("Independent Fn", 1))?);
@@ -17,7 +18,8 @@ fn main() -> Result<()> {
         .father_name("Independent Fn Father")
         .mother_name("Independent Fn Mother")
         .build()?;
-    println!("{:#?}", f(flex_arg1)?);
+    println!("Sync:\n{:#?}", f(flex_arg1)?);
+    println!("Async:\n{:#?}", f_async(flex_arg1).await?);
 
     // struct fn
     let o = O {};
@@ -28,7 +30,8 @@ fn main() -> Result<()> {
         .father_name("Struct Fn Father")
         .mother_name("Struct Fn Mother")
         .build()?;
-    println!("{:#?}", o.f(flex_arg2)?);
+    println!("Sync:\n{:#?}", o.f(flex_arg2)?);
+    println!("Async:\n{:#?}", o.f_async(flex_arg2).await?);
 
     // trait fn
     let i = I {};
@@ -39,6 +42,7 @@ fn main() -> Result<()> {
         .mother_name("Trait Fn Mother")
         .weight(90)
         .build()?;
-    println!("{:#?}", i.f(flex_arg3)?);
+    println!("Sync:\n{:#?}", i.f(flex_arg3)?);
+    println!("Async:\n{:#?}", i.f_async(flex_arg3).await?);
     Ok(())
 }

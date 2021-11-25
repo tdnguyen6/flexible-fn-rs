@@ -3,6 +3,7 @@ use super::definition::sig;
 use super::definition::O;
 use anyhow::Result;
 use std::collections::HashMap;
+use async_trait::async_trait;
 
 impl sig::F<O, Result<i32>> for () {
     fn f(&self, _o: &O) -> Result<i32> {
@@ -18,6 +19,13 @@ impl sig::F<O, Result<HashMap<i32, String>>> for (&str, i32) {
 
 impl sig::F<O, Result<Vec<String>>> for &arg::Info<'_> {
     fn f(&self, _o: &O) -> Result<Vec<String>> {
+        Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
+    }
+}
+
+#[async_trait]
+impl sig::FAsync<O, Result<Vec<String>>> for &arg::Info<'_> {
+    async fn f_async(&self, _o: &O) -> Result<Vec<String>> {
         Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
     }
 }
