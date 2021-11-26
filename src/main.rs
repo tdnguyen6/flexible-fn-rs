@@ -11,7 +11,7 @@ use trait_fn::implementation::*;
 #[tokio::main]
 async fn main() -> Result<()> {
     // independent fn
-    println!("{}", f(())?);
+    println!("{:#?}", f(())?);
     println!("{:#?}", f(("Independent Fn", 1))?);
     let flex_arg1 = &independent_fn::definition::arg::InfoBuilder::default()
         .birth_day("1990-12-07")

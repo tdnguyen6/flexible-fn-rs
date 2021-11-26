@@ -1,13 +1,15 @@
 pub mod sig {
     use async_trait::async_trait;
 
-    pub trait F<R> {
-        fn f(&self) -> R;
+    pub trait F {
+        type Output;
+        fn f(&self) -> Self::Output;
     }
 
     #[async_trait]
-    pub trait FAsync<R> {
-        async fn f_async(&self) -> R;
+    pub trait FAsync {
+        type Output;
+        async fn f_async(&self) -> Self::Output;
     }
 }
 
@@ -33,10 +35,10 @@ pub mod arg {
     }
 }
 
-pub fn f<P: sig::F<R>, R>(p: P) -> R {
+pub fn f<P: sig::F>(p: P) -> P::Output {
     p.f()
 }
 
-pub async fn f_async<P: sig::FAsync<R>, R>(p: P) -> R {
+pub async fn f_async<P: sig::FAsync>(p: P) -> P::Output {
     p.f_async().await
 }

@@ -1,11 +1,11 @@
 pub struct O;
 
 impl O {
-    pub fn f<P: sig::F<Self, R>, R>(&self, p: P) -> R {
+    pub fn f<P: sig::F<Self>>(&self, p: P) -> P::Output {
         p.f(self)
     }
 
-    pub async fn f_async<P: sig::FAsync<Self, R>, R>(&self, p: P) -> R {
+    pub async fn f_async<P: sig::FAsync<Self>>(&self, p: P) -> P::Output {
         p.f_async(self).await
     }
 }
@@ -13,13 +13,15 @@ impl O {
 pub mod sig {
     use async_trait::async_trait;
 
-    pub trait F<O: ?Sized, R> {
-        fn f(&self, o: &O) -> R;
+    pub trait F<O: ?Sized> {
+        type Output;
+        fn f(&self, o: &O) -> Self::Output;
     }
 
     #[async_trait]
-    pub trait FAsync<O: ?Sized, R> {
-        async fn f_async(&self, o: &O) -> R;
+    pub trait FAsync<O: ?Sized> {
+        type Output;
+        async fn f_async(&self, o: &O) -> Self::Output;
     }
 }
 

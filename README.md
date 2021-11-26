@@ -72,108 +72,171 @@ Python has the most modern and flexible function call mechanism. Optional and na
 The only way we can have different functions with similar names in Rust is by calling them from different objects. Overloading is about calling functions with the same name with different arguments. Therefore, we can consider the different arguments as objects and implement functions with similar names on them.
 
 ### Independent function
-We start with a generic trait signature of the function:
+
+We start with trait signatures of the functions:
 
 ```rs
-pub trait F<R> { // R generic parameter for return type
-    fn f(&self) -> R;
+pub trait F {
+    type Output;
+    fn f(&self) -> Self::Output;
+}
+
+#[async_trait]
+pub trait FAsync {
+    type Output;
+    async fn f_async(&self) -> Self::Output;
 }
 ```
 
 We can then implement this for different arguments:
+
 ```rs
 // arg: () - empty
 // return Result<i32>
-impl F<Result<i32>> for () {
-    fn f(&self) -> Result<i32> {
+impl F for () {
+    type Output = Result<i32>;
+    fn f(&self) -> Self::Output {
         Ok(1)
     }
 }
 
 // arg: (&str, i32)
 // return Result<HashMap<i32, String>>
-impl F<Result<HashMap<i32, String>>> for (&str, i32) {
-    fn f(&self) -> Result<HashMap<i32, String>> {
+impl F for (&str, i32) {
+    type Output = Result<HashMap<i32, String>>;
+    fn f(&self) -> Self::Output {
         Ok(HashMap::from([(self.1, String::from(self.0))]))
     }
 }
 
 // arg: Info struct
 // return Result<Vec<String>>
-impl F<Result<Vec<String>>> for &arg::Info<'_> {
-    fn f(&self) -> Result<Vec<String>> {
+impl F for &Info<'_> {
+    type Output = Result<Vec<String>>;
+    fn f(&self) -> Self::Output {
+        Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
+    }
+}
+
+// async version
+// arg: Info struct
+// return Result<Vec<String>>
+#[async_trait]
+impl FAsync for &Info<'_> {
+    type Output = Result<Vec<String>>;
+    async fn f_async(&self) -> Self::Output {
         Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
     }
 }
 ```
 
 We can then call the functions on the argument types:
+
 ```rs
 let a: Result<i32> = ().f()
 let b: Result<HashMap<i32, String>> = ("abc", 1).f()
-let c: Result<Vec<String>> = (&arg::Info { ... }).f()
+let c: Result<Vec<String>> = (&Info { ... }).f()
+let d: Result<Vec<String>> = (&Info { ... }).f_async().await?
 ```
 
-However, those function calls are ugly and unintuitive. Therefore, we should write a wrapper to make them look better:
+However, those function calls are ugly and unintuitive. Therefore, we should write some wrappers to make them look better:
+
 ```rs
-pub fn f<P: F<R>, R>(p: P) -> R {
+pub fn f<P: F>(p: P) -> P::Output {
     p.f()
+}
+
+pub async fn f_async<P: FAsync>(p: P) -> P::Output {
+    p.f_async().await
 }
 ```
 
-Now, we can call f() in the regular way:
+Now, we can call `f()` and `f_async()` in the regular way:
+
 ```rs
 let a: Result<i32> = f(())
 let b: Result<HashMap<i32, String>> = f(("abc", 1))
-let c: Result<Vec<String>> = f(&arg::Info { ... })
+let c: Result<Vec<String>> = f(&Info { ... })
+let d: Result<Vec<String>> = f_async(&Info { ... }).await?
 ```
 
 ### Struct function
-We can modify this a bit to make this works as methods of another struct. The signature should now contain the struct type. The method also expose a borrowed reference to the object in other to use other fields/methods of the struct.
+
+We can modify this a bit to make this works as methods of another struct. The signature should now be generic with the struct type as a parameter. The method also expose a borrowed reference to the object in other to use other fields/methods of the struct.
+
 ```rs
-pub trait F<O: ?Sized, R> {
-    fn f(&self, o: &O) -> R;
+pub trait F<O: ?Sized> {
+    type Output;
+    fn f(&self, o: &O) -> Self::Output;
+}
+
+#[async_trait]
+pub trait FAsync<O: ?Sized> {
+    type Output;
+    async fn f_async(&self, o: &O) -> Self::Output;
 }
 ```
+
 Now here is the wrapper:
+
 ```rs
 impl O {
-    pub fn f<P: F<Self, R>, R>(&self, p: P) -> R {
+    pub fn f<P: F<Self>>(&self, p: P) -> P::Output {
         p.f(self)
+    }
+
+    pub async fn f_async<P: FAsync<Self>>(&self, p: P) -> P::Output {
+        p.f_async(self).await
     }
 }
 ```
+
 The type of O is now Self in the wrapper. Self is unsized but generic type parameter are implicitly bounded by Sized. As a result, we remove the Sized bound for O in the signature with `O: ?Sized`. I am not sure if removing the Sized bound has any implication and whether there is any better way of doing this.
 
 Now we can call the method on struct O:
+
 ```rs
 let o = O {};
 let a: Result<i32> = o.f(())
 let b: Result<HashMap<i32, String>> = o.f(("abc", 1))
-let c: Result<Vec<String>> = o.f(&arg::Info { ... })
+let c: Result<Vec<String>> = o.f(&Info { ... })
+let d: Result<Vec<String>> = o.f_async(&Info { ... }).await?
 ```
 
 ### Trait function
+
 This is mostly similar to struct functions. However, the wrapper should not be in the impl block but should be in the trait block as the default impl
+
 ```rs
+#[async_trait]
 pub trait T {
-    fn f<P: F<Self, R>, R>(&self, p: P) -> R {
+    fn f<P: F<Self>>(&self, p: P) -> P::Output {
         p.f(self)
+    }
+
+    // P must implement Sync + Send to be threadsafe for trait
+    async fn f_async<P: FAsync<Self> + Send + Sync>(&self, p: P) -> P::Output {
+        p.f_async(self).await
     }
 }
 ```
+
 By having the wrapper as the default impl of trait, every struct that impl the Trait will not have to implement this wrapper again. Notice that if that is the only method of the trait, we must still provide an empty impl block.
+
 ```rs
 pub struct I;
 
 impl T for I {}
 ```
+
 Now we can call the method of the trait on the object:
+
 ```rs
 let i = I {};
 let a: Result<i32> = i.f(())
 let b: Result<HashMap<i32, String>> = i.f(("abc", 1))
-let c: Result<Vec<String>> = i.f(&arg::Info { ... })
+let c: Result<Vec<String>> = i.f(&Info { ... })
+let d: Result<Vec<String>> = i.f_async(&Info { ... }).await?
 ```
 
 ## Compared to C++/Java
@@ -181,6 +244,7 @@ let c: Result<Vec<String>> = i.f(&arg::Info { ... })
 Because of this overloading mechanism (each overloaded function is a trait impl for an argument type), we will not be able to have similar function name and arguments types but different return type. This is the same as in C++/Java, we also cannot have overloaded functions with just a different return type.
 
 ## Known issues
+
 - Error is not straight forward: when we use an overloaded method on an argument without implementing the signature for that argument, instead of `method not found in ...` we will receive `the trait ...::F<>... is not implemented for Arg`
 - Less IDE suggestions and completions
 - A bit tedious to implement compared to the traditional way of just choosing to a different function name.

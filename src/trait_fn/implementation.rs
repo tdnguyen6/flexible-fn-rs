@@ -1,35 +1,39 @@
-use std::collections::HashMap;
-use anyhow::Result;
 use super::definition::arg;
 use super::definition::sig;
 use super::definition::T;
+use anyhow::Result;
 use async_trait::async_trait;
+use std::collections::HashMap;
 
 pub struct I;
 
 impl T for I {}
 
-impl sig::F<I, Result<i32>> for () {
-    fn f(&self, _o: &I) -> Result<i32> {
+impl sig::F<I> for () {
+    type Output = Result<i32>;
+    fn f(&self, _o: &I) -> Self::Output {
         Ok(3)
     }
 }
 
-impl sig::F<I, Result<HashMap<i32, String>>> for (&str, i32) {
-    fn f(&self, _o: &I) -> Result<HashMap<i32, String>> {
+impl sig::F<I> for (&str, i32) {
+    type Output = Result<HashMap<i32, String>>;
+    fn f(&self, _o: &I) -> Self::Output {
         Ok(HashMap::from([(self.1, String::from(self.0))]))
     }
 }
 
-impl sig::F<I, Result<Vec<String>>> for &arg::Info<'_> {
-    fn f(&self, _o: &I) -> Result<Vec<String>> {
+impl sig::F<I> for &arg::Info<'_> {
+    type Output = Result<Vec<String>>;
+    fn f(&self, _o: &I) -> Self::Output {
         Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
     }
 }
 
 #[async_trait]
-impl sig::FAsync<I, Result<Vec<String>>> for &arg::Info<'_> {
-    async fn f_async(&self, _o: &I) -> Result<Vec<String>> {
+impl sig::FAsync<I> for &arg::Info<'_> {
+    type Output = Result<Vec<String>>;
+    async fn f_async(&self, _o: &I) -> Self::Output {
         Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
     }
 }
