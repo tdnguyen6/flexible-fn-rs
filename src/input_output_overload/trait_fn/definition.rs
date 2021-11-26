@@ -1,27 +1,27 @@
-pub struct O;
+use async_trait::async_trait;
 
-impl O {
-    pub fn f<P: sig::F<Self>>(&self, p: P) -> P::Output {
+#[async_trait]
+pub trait T {
+    fn f<P: sig::F<Self, R>, R>(&self, p: P) -> R {
         p.f(self)
     }
 
-    pub async fn f_async<P: sig::FAsync<Self>>(&self, p: P) -> P::Output {
+    // P must implement Sync + Send to be threadsafe for trait
+    async fn f_async<P: sig::FAsync<Self, R> + Send + Sync, R>(&self, p: P) -> R {
         p.f_async(self).await
     }
 }
 
 pub mod sig {
-    use async_trait::async_trait;
+    use super::*;
 
-    pub trait F<O: ?Sized> {
-        type Output;
-        fn f(&self, o: &O) -> Self::Output;
+    pub trait F<O: ?Sized, R> {
+        fn f(&self, o: &O) -> R;
     }
 
     #[async_trait]
-    pub trait FAsync<O: ?Sized> {
-        type Output;
-        async fn f_async(&self, o: &O) -> Self::Output;
+    pub trait FAsync<O: ?Sized, R> {
+        async fn f_async(&self, o: &O) -> R;
     }
 }
 

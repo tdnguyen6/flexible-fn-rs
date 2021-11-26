@@ -15,13 +15,14 @@
     - [Independent function](#independent-function)
     - [Struct function](#struct-function)
     - [Trait function](#trait-function)
+    - [Output type overloading only](#output-type-overloading-only)
   - [Compared to C++/Java](#compared-to-cjava)
   - [Known issues](#known-issues)
   - [Alternatives](#alternatives)
 
 # flexible-fn-rs
 
-Demonstration of flexible function calls in Rust with function overloading and optional arguments
+Demonstration of flexible function calls in Rust with function overloading, named arguments and optional arguments
 
 # What is this trying to demo?
 
@@ -35,11 +36,17 @@ This repo is trying to demo that Rust can provide all the flexbilities when doin
 
 # How is the code structured?
 
-There are 3 demo, focusing on 3 kinds of functions:
+There are 2 demos, focusing on 2 kinds of overloading mechanisms:
+
+- Overload input types only (each input type has exactly 1 output type)
+- Overload both input and output types (each input type can have many output types)
+
+The 2 demos are further splitted into 3 subcategories:
 
 - Independent functions, calling without attaching to any struct
 - Struct functions, defined in struct impl blocks
 - Trait functions, defined in `impl Trait for Struct` blocks
+
 
 # Named/Unnamed and Optional arguments
 
@@ -69,7 +76,7 @@ Python has the most modern and flexible function call mechanism. Optional and na
 
 ## Mechanism
 
-The only way we can have different functions with similar names in Rust is by calling them from different objects. Overloading is about calling functions with the same name with different arguments. Therefore, we can consider the different arguments as objects and implement functions with similar names on them.
+The only way we can have different functions with similar names in Rust is by calling them from different objects. Overloading is about calling functions with the same name with different arguments. Therefore, we can consider the different arguments as objects and implement functions with similar names on them. Rust's operator overloading also uses the same mechanism (see [this](https://doc.rust-lang.org/rust-by-example/trait/ops.html))
 
 ### Independent function
 
@@ -133,10 +140,10 @@ impl FAsync for &Info<'_> {
 We can then call the functions on the argument types:
 
 ```rs
-let a: Result<i32> = ().f()
-let b: Result<HashMap<i32, String>> = ("abc", 1).f()
-let c: Result<Vec<String>> = (&Info { ... }).f()
-let d: Result<Vec<String>> = (&Info { ... }).f_async().await?
+let a = ().f() // Result<i32>
+let b = ("abc", 1).f() // Result<HashMap<i32, String>>
+let c = (&Info { ... }).f() // Result<Vec<String>>
+let d = (&Info { ... }).f_async().await // Result<Vec<String>>
 ```
 
 However, those function calls are ugly and unintuitive. Therefore, we should write some wrappers to make them look better:
@@ -154,10 +161,10 @@ pub async fn f_async<P: FAsync>(p: P) -> P::Output {
 Now, we can call `f()` and `f_async()` in the regular way:
 
 ```rs
-let a: Result<i32> = f(())
-let b: Result<HashMap<i32, String>> = f(("abc", 1))
-let c: Result<Vec<String>> = f(&Info { ... })
-let d: Result<Vec<String>> = f_async(&Info { ... }).await?
+let a: = f(()) // Result<i32>
+let b = f(("abc", 1)) // b: Result<HashMap<i32, String>>
+let c = f(&Info { ... }) // Result<Vec<String>>
+let d = f_async(&Info { ... }).await // Result<Vec<String>>
 ```
 
 ### Struct function
@@ -197,10 +204,10 @@ Now we can call the method on struct O:
 
 ```rs
 let o = O {};
-let a: Result<i32> = o.f(())
-let b: Result<HashMap<i32, String>> = o.f(("abc", 1))
-let c: Result<Vec<String>> = o.f(&Info { ... })
-let d: Result<Vec<String>> = o.f_async(&Info { ... }).await?
+let a = o.f(()) // Result<i32>
+let b = o.f(("abc", 1)) // Result<HashMap<i32, String>>
+let c = o.f(&Info { ... }) // Result<Vec<String>>
+let d = o.f_async(&Info { ... }).await // Result<Vec<String>>
 ```
 
 ### Trait function
@@ -233,15 +240,90 @@ Now we can call the method of the trait on the object:
 
 ```rs
 let i = I {};
-let a: Result<i32> = i.f(())
-let b: Result<HashMap<i32, String>> = i.f(("abc", 1))
-let c: Result<Vec<String>> = i.f(&Info { ... })
-let d: Result<Vec<String>> = i.f_async(&Info { ... }).await?
+let a = i.f(()) // Result<i32>
+let b = i.f(("abc", 1)) // Result<HashMap<i32, String>>
+let c = i.f(&Info { ... }) // Result<Vec<String>>
+let d = i.f_async(&Info { ... }).await // Result<Vec<String>>
+```
+
+
+### Output type overloading only
+In the above overloading implementations, we **intentionally** used Output type var (`type Output;`) instead of making the Output type as a generic parameter. This disallows user from having multiple implementations for the same Input type but with different Output types. 
+
+Rust's official operator overloading mechanism also implemented the same exact limitation (more on this: https://stackoverflow.com/a/39118492/12361118). This limitation helped to reduce complexity and ensure things align with the traditional overloading logics.
+
+However, we can remove that limitation and allow users to implement overloaded functions that differentiate only on the return type. We can start by converting the `type Output;` in to generic type param:
+```rs
+pub trait F<R> {
+    fn f(&self) -> R;
+}
+
+#[async_trait]
+pub trait FAsync<R> {
+    async fn f_async(&self) -> R;
+}
+```
+
+Then, we rewrite the wrapper:
+```rs
+pub fn f<P: sig::F<R>, R>(p: P) -> R {
+    p.f()
+}
+
+pub async fn f_async<P: sig::FAsync<R>, R>(p: P) -> R {
+    p.f_async().await
+}
+```
+
+Now, let's implement some examples:
+```rs
+impl F<Result<i32>> for &Info<'_> {
+    fn f(&self) -> Result<i32> {
+        Ok(1)
+    }
+}
+
+impl F<Result<Vec<String>>> for &Info<'_> {
+    fn f(&self) -> Result<Vec<String>> {
+        Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
+    }
+}
+
+#[async_trait]
+impl FAsync<Result<i32>> for &Info<'_> {
+    async fn f_async(&self) -> Result<i32> {
+        Ok(2)
+    }
+}
+
+#[async_trait]
+impl FAsync<Result<Vec<String>>> for &Info<'_> {
+    async fn f_async(&self) -> Result<Vec<String>> {
+        Ok(vec![String::from("trait_fn"), format!("{:#?}", self)])
+    }
+}
+```
+
+However, when we try to use it, we immediately receive errors from the compiler saying that our function calls are ambiguous, it does not know which exact function we want to use. Therefore, we **must explicitly specify the return type** whenever we call these functions.
+```rs
+let flex_arg = &InfoBuilder::default()
+        .birth_day("1990-12-07")
+        .father_name("Independent Fn Father")
+        .mother_name("Independent Fn Mother")
+        .build()?;
+
+// one way to specify type
+let res: Result<i32> = f(flex_arg);
+
+// another way to specify type
+f::<&Info, Result<i32>>(flex_arg);
 ```
 
 ## Compared to C++/Java
 
-Because of this overloading mechanism (each overloaded function is a trait impl for an argument type), we will not be able to have similar function name and arguments types but different return type. This is the same as in C++/Java, we also cannot have overloaded functions with just a different return type.
+In C++/C#/Java, functions are chosen based on their signatures, each signature consists of function name and arguments' types. As a result, each combination of function name and arguments' types uniquely define a function. We can overload functions by changing this combination in those languages. As the signature does not contain return type, one limitation of function overloading in those languages is that we cannot have the same signature (combination of function name and arguments' types) but different return types - a.k.a. output type overloading.
+
+In Rust, due to the power of traits and generics, we have much more flexibility to overload functions compared to C++/C#/Java. In Rust, we can overload not only input types but also output types. However, we should notice that when we overload output types only (same input types, different output types), we **must explicitly provide the output type** or the compiler will not be able to figure out which function we want to use.
 
 ## Known issues
 
