@@ -252,7 +252,7 @@ In the above overloading implementations, we **intentionally** used Output type 
 
 Rust's official operator overloading mechanism also implemented the same exact limitation (more on this: https://stackoverflow.com/a/39118492/12361118). This limitation helped to reduce complexity and ensure things align with the traditional overloading logics.
 
-However, we can remove that limitation and allow users to implement overloaded functions that differentiate only on the return type. We can start by converting the `type Output;` in to generic type param:
+However, we can remove that limitation and allow users to implement overloaded functions that differentiate only on the return type. We can start by converting the `type Output;` into generic type param:
 ```rs
 pub trait F<R> {
     fn f(&self) -> R;
